@@ -1,0 +1,9 @@
+{
+  "appId": "com.epicerie.app",
+  "appName": "Epicerie",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true
+  }
+}
