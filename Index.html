@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="theme-color" content="#0078d4"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Epicerie"/>
+  <meta name="description" content="Gestion des ventes pour epicerie"/>
+  <link rel="manifest" href="manifest.json"/>
+  <title>Epicerie — Gestion des Ventes</title>
+</head>
+<body style="margin:0;padding:0;background:#e4e8f5;">
+  <div id="root"></div>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState } = React;
+
+
+
+const CATEGORIES = ["Tous","Fruits & Légumes","Boulangerie","Produits Laitiers","Viandes","Épicerie","Boissons","Hygiène"];
+const CAT_COLORS = {
+  "Fruits & Légumes": { bg:"rgba(134,239,172,0.22)",text:"#16a34a",dot:"#22c55e" },
+  "Boulangerie":      { bg:"rgba(253,186,116,0.22)",text:"#ea580c",dot:"#fb923c" },
+  "Produits Laitiers":{ bg:"rgba(147,197,253,0.22)",text:"#2563eb",dot:"#60a5fa" },
+  "Viandes":          { bg:"rgba(252,165,165,0.22)",text:"#dc2626",dot:"#f87171" },
+  "Épicerie":         { bg:"rgba(253,224,71,0.22)", text:"#ca8a04",dot:"#fbbf24" },
+  "Boissons":         { bg:"rgba(110,231,183,0.22)",text:"#059669",dot:"#34d399" },
+  "Hygiène":          { bg:"rgba(216,180,254,0.22)",text:"#9333ea",dot:"#c084fc" },
+};
+const cc = (cat) => CAT_COLORS[cat] || { bg:"rgba(200,200,200,0.2)",text:"#666",dot:"#aaa" };
+const ar = (n) => Math.round(n).toLocaleString("fr-FR") + " Ar";
+const today = () => new Date().toISOString().slice(0,10);
+
+const CSS = `
+,
+    radial-gradient(ellipse 70% 50% at 85% 90%,rgba(160,215,255,0.22) 0%,transparent 55%),
+    radial-gradient(ellipse 55% 40% at 55% 40%,rgba(200,180,255,0.14) 0%,transparent 50%),
+    linear-gradient(160deg,#dde3f5 0%,#eaedf8 50%,#e2e9f5 100%);
+  background-attachment:fixed;
+  padding-bottom:76px;
+}
+/* noise */
+.root::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E");pointer-events:none;z-index:0}
+
+/* ── TOP BAR ── */
+.topbar{
+  background:rgba(248,250,255,0.78);
+  backdrop-filter:blur(36px) saturate(180%);
+  -webkit-backdrop-filter:blur(36px) saturate(180%);
+  border-bottom:1px solid var(--bdr);
+  box-shadow:0 1px 0 rgba(255,255,255,0.85),0 2px 16px rgba(0,0,0,0.06);
+  padding:12px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;
+}
+.logo{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:16px;font-weight:700;color:var(--acc)}
+.logo-sub{font-size:9px;color:var(--txm);letter-spacing:1.8px;text-transform:uppercase}
+
+/* ── BOTTOM NAV ── */
+.botnav{
+  position:fixed;bottom:0;left:0;right:0;z-index:50;
+  background:rgba(248,250,255,0.88);
+  backdrop-filter:blur(36px) saturate(180%);
+  -webkit-backdrop-filter:blur(36px) saturate(180%);
+  border-top:1px solid var(--bdr);
+  box-shadow:0 -2px 20px rgba(0,0,0,0.07);
+  display:flex;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.botnav-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:10px 4px 8px;background:none;border:none;cursor:pointer;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:10px;font-weight:600;
+  color:var(--txm);letter-spacing:0.3px;text-transform:uppercase;
+  transition:color 0.18s ease;gap:3px;position:relative;
+}
+.botnav-btn.active{color:var(--acc)}
+.botnav-btn.active .bnav-dot{opacity:1;transform:scale(1)}
+.bnav-icon{font-size:20px;line-height:1}
+.bnav-dot{
+  position:absolute;bottom:6px;width:4px;height:4px;
+  background:var(--acc);border-radius:50%;
+  opacity:0;transform:scale(0);
+  transition:all 0.2s ease;
+}
+
+/* ── CARDS ── */
+.card{
+  background:var(--card);
+  backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border:1px solid var(--bdr);border-radius:16px;
+  padding:18px;box-shadow:var(--sh);
+  position:relative;overflow:hidden;
+}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.9),transparent)}
+
+/* ── INPUTS ── */
+.inp{
+  background:var(--inp);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,0.7);
+  border-bottom:2px solid rgba(0,0,0,0.1);
+  border-radius:10px;padding:12px 14px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;
+  color:var(--tx);width:100%;outline:none;
+  transition:all 0.2s ease;
+}
+.inp:focus{background:rgba(255,255,255,0.85);border-bottom-color:var(--acc);box-shadow:0 2px 0 var(--acc)}
+.inp::placeholder{color:var(--txm)}
+.inp-big{font-size:22px;font-weight:700;text-align:center;padding:14px}
+.sel{
+  background:var(--inp);border:1px solid rgba(255,255,255,0.7);
+  border-bottom:2px solid rgba(0,0,0,0.1);border-radius:10px;
+  padding:11px 13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;
+  color:var(--tx);width:100%;outline:none;cursor:pointer;
+}
+
+/* ── BUTTONS ── */
+.btn-acc{
+  background:var(--acc);color:white;border:none;
+  padding:13px 20px;border-radius:12px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:700;font-size:14px;
+  cursor:pointer;transition:all 0.18s ease;
+  box-shadow:0 3px 12px rgba(0,120,212,0.3);
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-acc:active{transform:scale(0.97);background:var(--acc2)}
+.btn-ghost{
+  background:rgba(255,255,255,0.55);color:var(--tx2);
+  border:1px solid rgba(255,255,255,0.8);
+  padding:11px 18px;border-radius:12px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600;font-size:13px;cursor:pointer;
+  transition:all 0.18s ease;
+}
+.btn-ghost:active{background:rgba(255,255,255,0.8)}
+.btn-del{
+  background:var(--err-bg);color:var(--err);
+  border:1px solid var(--err-bd);
+  padding:8px 13px;border-radius:10px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-weight:600;font-size:12px;cursor:pointer;
+}
+
+/* ── PROD TILE ── */
+.prod-tile{
+  background:var(--card);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--bdr);border-radius:14px;
+  padding:13px 14px;cursor:pointer;
+  transition:all 0.18s ease;text-align:left;width:100%;
+  position:relative;overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+}
+.prod-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.9),transparent)}
+.prod-tile:active:not(:disabled){transform:scale(0.97);background:var(--card2)}
+.prod-tile:disabled{opacity:0.38;cursor:not-allowed}
+
+/* ── BADGE / PILL ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.pill{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;white-space:nowrap;transition:all 0.15s ease;-webkit-tap-highlight-color:transparent}
+
+/* ── MODAL ── */
+.overlay{position:fixed;inset:0;background:rgba(10,15,35,0.38);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:200;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn 0.2s ease}
+.modal{
+  background:rgba(244,246,255,0.96);
+  backdrop-filter:blur(48px) saturate(200%);-webkit-backdrop-filter:blur(48px) saturate(200%);
+  border:1px solid rgba(255,255,255,0.9);
+  border-radius:22px 22px 0 0;
+  padding:24px 20px 36px;
+  width:100%;max-height:92vh;overflow-y:auto;
+  box-shadow:0 -8px 40px rgba(0,0,0,0.15);
+  animation:slideUp 0.28s ease;
+}
+.modal-handle{width:36px;height:4px;background:rgba(0,0,0,0.15);border-radius:2px;margin:0 auto 20px}
+
+/* ── NOTIF ── */
+.notif{
+  position:fixed;top:74px;left:16px;right:16px;z-index:300;
+  padding:13px 18px;border-radius:13px;font-weight:600;font-size:14px;
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.7);
+  box-shadow:0 6px 28px rgba(0,0,0,0.12);
+  animation:slideDown 0.28s ease;text-align:center;
+}
+
+/* ── RECEIPT ── */
+.receipt{
+  background:rgba(255,255,255,0.65);backdrop-filter:blur(16px);
+  border:1px solid rgba(255,255,255,0.85);
+  border-radius:18px;padding:24px 20px;box-shadow:var(--sh);
+}
+
+/* ── MONEY BOX ── */
+.money-box{
+  border-radius:14px;padding:16px;
+  display:flex;flex-direction:column;gap:6px;
+  border:1.5px solid;
+}
+
+/* ── TABLE ── */
+.trow{border-bottom:1px solid rgba(0,0,0,0.05);transition:background 0.15s}
+.trow:active{background:rgba(255,255,255,0.4)}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes slideDown{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ── UTILS ── */
+.lbl{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txm);margin-bottom:6px;display:block}
+.sora{font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif}
+.page{padding:14px 14px 0;position:relative;z-index:1;animation:fadeIn 0.25s ease}
+.gap-row{display:flex;gap:8px;align-items:center}
+.divider{height:1px;background:rgba(0,0,0,0.06);margin:10px 0}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12);border-radius:2px}
+`;
+
+function App() {
+  const [page, setPage] = useState("caisse");
+  const [products, setProducts] = useState([]);
+  const [sales, setSales] = useState([]);
+
+  // caisse
+  const [cart, setCart] = useState([]);
+  const [received, setReceived] = useState("");
+  const [saleResult, setSaleResult] = useState(null);
+  const [catFilter, setCatFilter] = useState("Tous");
+  const [searchQ, setSearchQ] = useState("");
+
+  // produits
+  const [showModal, setShowModal] = useState(false);
+  const [editProd, setEditProd] = useState(null);
+  const [form, setForm] = useState({ nom:"", categorie:CATEGORIES[1], prixAchat:"", prixVente:"", stock:"", unite:"pce" });
+  const [prodSearch, setProdSearch] = useState("");
+  const [prodCat, setProdCat] = useState("Tous");
+
+  // notif
+  const [notif, setNotif] = useState(null);
+  const notify = (msg, type="ok") => { setNotif({msg,type}); setTimeout(()=>setNotif(null),2400); };
+
+  // stats
+  const totalVentes = sales.reduce((s,v)=>s+v.totalVente,0);
+  const totalAchats = sales.reduce((s,v)=>s+v.prixAchat*v.quantite,0);
+  const benef = totalVentes - totalAchats;
+  const lowStock = products.filter(p=>p.stock<10);
+
+  // cart
+  const addToCart = (p) => {
+    const ex = cart.find(c=>c.id===p.id);
+    if(ex) setCart(cart.map(c=>c.id===p.id?{...c,qty:c.qty+1}:c));
+    else setCart([...cart,{...p,qty:1}]);
+  };
+  const updQty = (id,qty) => {
+    if(qty<=0) setCart(cart.filter(c=>c.id!==id));
+    else setCart(cart.map(c=>c.id===id?{...c,qty}:c));
+  };
+  const cartTotal = cart.reduce((s,c)=>s+c.prixVente*c.qty,0);
+  const monnaie = received ? +received - cartTotal : null;
+
+  const valider = () => {
+    if(!cart.length) return;
+    const rec = +received||0;
+    if(rec < cartTotal){ notify("Montant insuffisant !","err"); return; }
+    const ns = cart.map((c,i)=>({
+      id: sales.length+i+1, date:today(),
+      produit:c.nom, unite:c.unite, quantite:c.qty,
+      prixAchat:c.prixAchat, prixVente:c.prixVente,
+      totalVente:c.prixVente*c.qty,
+      benefice:(c.prixVente-c.prixAchat)*c.qty,
+    }));
+    setSales([...sales,...ns]);
+    setProducts(products.map(p=>{
+      const item=cart.find(c=>c.id===p.id);
+      return item?{...p,stock:Math.max(0,p.stock-item.qty)}:p;
+    }));
+    setSaleResult({ items:cart, total:cartTotal, recu:rec, monnaie:rec-cartTotal });
+    setCart([]); setReceived("");
+  };
+
+  // produits
+  const openAdd = () => { setEditProd(null); setForm({nom:"",categorie:CATEGORIES[1],prixAchat:"",prixVente:"",stock:"",unite:"pce"}); setShowModal(true); };
+  const openEdit = (p) => { setEditProd(p); setForm({nom:p.nom,categorie:p.categorie,prixAchat:p.prixAchat,prixVente:p.prixVente,stock:p.stock,unite:p.unite}); setShowModal(true); };
+  const saveProd = () => {
+    if(!form.nom||!form.prixAchat||!form.prixVente||!form.stock){ notify("Remplissez tous les champs","err"); return; }
+    const p={...form,prixAchat:+form.prixAchat,prixVente:+form.prixVente,stock:+form.stock};
+    if(editProd){ setProducts(products.map(x=>x.id===editProd.id?{...x,...p}:x)); notify("Modifié ✓"); }
+    else { setProducts([...products,{...p,id:Date.now()}]); notify("Ajouté ✓"); }
+    setShowModal(false);
+  };
+  const delProd = (id) => { setProducts(products.filter(p=>p.id!==id)); notify("Supprimé","err"); };
+
+  const filtCaisse = products.filter(p=>
+    (catFilter==="Tous"||p.categorie===catFilter) &&
+    p.nom.toLowerCase().includes(searchQ.toLowerCase())
+  );
+  const filtProds = products.filter(p=>
+    (prodCat==="Tous"||p.categorie===prodCat) &&
+    p.nom.toLowerCase().includes(prodSearch.toLowerCase())
+  );
+  const mg = (p) => p.prixVente>0 ? Math.round((p.prixVente-p.prixAchat)/p.prixVente*100) : 0;
+  const benef1 = (p) => p.prixVente - p.prixAchat;
+
+  const TABS = [
+    {k:"dashboard",icon:"📊",label:"Bilan"},
+    {k:"caisse",   icon:"🧾",label:"Vente"},
+    {k:"products", icon:"📦",label:"Stock"},
+    {k:"historique",icon:"📋",label:"Historique"},
+  ];
+
+  return (
+    <div className="root">
+      <style>{CSS}</style>
+
+      {/* NOTIF */}
+      {notif && (
+        <div className="notif" style={{
+          background: notif.type==="err" ? "rgba(255,235,235,0.95)" : "rgba(235,255,243,0.95)",
+          color: notif.type==="err" ? "var(--err)" : "var(--ok)"
+        }}>{notif.msg}</div>
+      )}
+
+      {/* TOP BAR */}
+      <div className="topbar">
+        <div>
+          <div className="logo">🛒 Épicerie</div>
+          <div className="logo-sub">Gestion des Ventes</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {lowStock.length>0&&(
+            <span className="badge" style={{background:"var(--warn-bg)",color:"var(--warn)"}}>
+              ⚠️ {lowStock.length} stock(s) faible
+            </span>
+          )}
+          <span className="badge" style={{background:"rgba(0,120,212,0.1)",color:"var(--acc)"}}>
+            {products.length} produits
+          </span>
+        </div>
+      </div>
+
+      {/* ══ DASHBOARD ══ */}
+      {page==="dashboard"&&(
+        <div className="page">
+          <div className="sora" style={{fontSize:20,fontWeight:700,color:"var(--tx)",marginBottom:16}}>Bilan</div>
+          {products.length===0?(
+            <div className="card" style={{textAlign:"center",padding:"50px 20px"}}>
+              <div style={{fontSize:44,marginBottom:14}}>📦</div>
+              <div className="sora" style={{fontSize:17,fontWeight:700,marginBottom:10}}>Aucun produit</div>
+              <div style={{color:"var(--tx2)",marginBottom:20,fontSize:14}}>Ajoutez d'abord vos produits dans l'onglet Stock.</div>
+              <button className="btn-acc" onClick={()=>setPage("products")} style={{width:"100%",padding:"14px"}}>+ Ajouter des produits</button>
+            </div>
+          ):(
+            <>
+              {/* Stats */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                {[
+                  {label:"Ventes",val:ar(totalVentes),color:"var(--acc)",bg:"rgba(0,120,212,0.08)",icon:"💰"},
+                  {label:"Achats",val:ar(totalAchats),color:"#6b21a8",bg:"rgba(107,33,168,0.08)",icon:"🛒"},
+                ].map((s,i)=>(
+                  <div key={i} className="card" style={{background:`linear-gradient(135deg,${s.bg},var(--card))`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                      <span className="lbl">{s.label}</span>
+                      <span style={{fontSize:18}}>{s.icon}</span>
+                    </div>
+                    <div className="sora" style={{fontSize:18,fontWeight:700,color:s.color}}>{s.val}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="card" style={{marginBottom:12,background:benef>=0?"linear-gradient(135deg,var(--ok-bg),var(--card))":"linear-gradient(135deg,var(--err-bg),var(--card))"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <span className="lbl">{benef>=0?"Bénéfice Net":"Perte Nette"}</span>
+                    <div className="sora" style={{fontSize:26,fontWeight:700,color:benef>=0?"var(--ok)":"var(--err)"}}>{ar(Math.abs(benef))}</div>
+                  </div>
+                  <span style={{fontSize:32}}>{benef>=0?"📈":"📉"}</span>
+                </div>
+              </div>
+
+              {/* Marges */}
+              <div className="card" style={{marginBottom:12}}>
+                <div className="sora" style={{fontSize:15,fontWeight:700,marginBottom:14}}>Marges par Produit</div>
+                {products.map(p=>{
+                  const b=benef1(p);
+                  return(
+                    <div key={p.id} style={{marginBottom:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7}}>
+                          <div style={{width:7,height:7,borderRadius:"50%",background:cc(p.categorie).dot,boxShadow:`0 0 5px ${cc(p.categorie).dot}`}}/>
+                          <span style={{fontWeight:600,fontSize:14}}>{p.nom}</span>
+                        </div>
+                        <span style={{fontWeight:700,fontSize:13,color:b>=0?"var(--ok)":"var(--err)"}}>
+                          {b>=0?"+":""}{ar(b)} <span style={{fontSize:11,color:"var(--txm)"}}>({mg(p)}%)</span>
+                        </span>
+                      </div>
+                      <div style={{fontSize:12,color:"var(--txm)",paddingLeft:14}}>
+                        Achat: {ar(p.prixAchat)} · Vente: {ar(p.prixVente)} · Stock: {p.stock} {p.unite}
+                      </div>
+                      <div className="divider"/>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Dernières ventes */}
+              {sales.length>0&&(
+                <div className="card" style={{marginBottom:12}}>
+                  <div className="sora" style={{fontSize:15,fontWeight:700,marginBottom:12}}>Dernières Ventes</div>
+                  {[...sales].reverse().slice(0,5).map(s=>(
+                    <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid rgba(0,0,0,0.05)"}}>
+                      <div>
+                        <div style={{fontWeight:600,fontSize:13}}>{s.produit} <span style={{color:"var(--txm)",fontWeight:400}}>×{s.quantite}</span></div>
+                        <div style={{fontSize:11,color:"var(--txm)"}}>{s.date}</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontWeight:700,color:"var(--acc)",fontSize:13}}>{ar(s.totalVente)}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:s.benefice>=0?"var(--ok)":"var(--err)"}}>
+                          {s.benefice>=0?"+":""}{ar(s.benefice)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ══ CAISSE ══ */}
+      {page==="caisse"&&(
+        <div className="page">
+          <div className="sora" style={{fontSize:20,fontWeight:700,color:"var(--tx)",marginBottom:14}}>Point de Vente</div>
+
+          {saleResult?(
+            /* ── REÇU ── */
+            <div className="receipt" style={{animation:"slideUp 0.3s ease"}}>
+              <div style={{textAlign:"center",marginBottom:22}}>
+                <div style={{width:64,height:64,borderRadius:"50%",background:"var(--ok-bg)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,margin:"0 auto 12px"}}>✅</div>
+                <div className="sora" style={{fontSize:20,fontWeight:700}}>Vente validée !</div>
+              </div>
+
+              {/* Articles */}
+              <div style={{background:"rgba(0,0,0,0.03)",borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+                {saleResult.items.map(item=>(
+                  <div key={item.id} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",fontSize:14}}>
+                    <span style={{color:"var(--tx2)"}}>{item.nom} <strong style={{color:"var(--tx)"}}>×{item.qty}</strong></span>
+                    <strong>{ar(item.prixVente*item.qty)}</strong>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total */}
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:15,fontWeight:600,marginBottom:10,padding:"0 2px"}}>
+                <span>Total</span><span style={{color:"var(--acc)"}}>{ar(saleResult.total)}</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:14,color:"var(--tx2)",marginBottom:14,padding:"0 2px"}}>
+                <span>Reçu</span><span>{ar(saleResult.recu)}</span>
+              </div>
+
+              {/* Monnaie */}
+              <div className="money-box" style={{background:"var(--ok-bg)",borderColor:"var(--ok-bd)",alignItems:"center"}}>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--ok)",textTransform:"uppercase",letterSpacing:1}}>💵 Monnaie à rendre</div>
+                <div className="sora" style={{fontSize:32,fontWeight:700,color:"var(--ok)"}}>{ar(saleResult.monnaie)}</div>
+              </div>
+
+              <button className="btn-acc" onClick={()=>setSaleResult(null)} style={{width:"100%",padding:"14px",marginTop:18,fontSize:15,borderRadius:14}}>
+                + Nouvelle Vente
+              </button>
+            </div>
+          ):(
+            <>
+              {products.length===0?(
+                <div className="card" style={{textAlign:"center",padding:"50px 16px"}}>
+                  <div style={{fontSize:36,marginBottom:12}}>📦</div>
+                  <div style={{color:"var(--tx2)",marginBottom:18,fontSize:14}}>Aucun produit disponible.</div>
+                  <button className="btn-acc" onClick={()=>setPage("products")} style={{width:"100%",padding:"13px"}}>Gérer les produits</button>
+                </div>
+              ):(
+                <>
+                  {/* Recherche */}
+                  <input className="inp" placeholder="🔍 Rechercher..." value={searchQ} onChange={e=>setSearchQ(e.target.value)} style={{marginBottom:10}}/>
+
+                  {/* Filtres catégorie */}
+                  <div style={{display:"flex",gap:7,overflowX:"auto",marginBottom:12,paddingBottom:4}}>
+                    {CATEGORIES.map(cat=>(
+                      <button key={cat} className="pill" onClick={()=>setCatFilter(cat)}
+                        style={{background:catFilter===cat?"var(--acc)":"rgba(255,255,255,0.55)",color:catFilter===cat?"white":"var(--tx2)",border:catFilter===cat?"none":"1px solid rgba(255,255,255,0.75)"}}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Grille produits */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:14}}>
+                    {filtCaisse.map(p=>(
+                      <button key={p.id} className="prod-tile" onClick={()=>addToCart(p)} disabled={p.stock===0}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                          <span className="badge" style={{background:cc(p.categorie).bg,color:cc(p.categorie).text,fontSize:10,padding:"2px 7px"}}>
+                            {p.categorie.split(" ")[0]}
+                          </span>
+                          <span style={{fontSize:10,color:p.stock===0?"var(--err)":p.stock<5?"var(--warn)":"var(--txm)",fontWeight:600}}>
+                            {p.stock===0?"Épuisé":`${p.stock} ${p.unite}`}
+                          </span>
+                        </div>
+                        <div style={{fontWeight:600,fontSize:13,marginBottom:5,color:"var(--tx)",lineHeight:1.2}}>{p.nom}</div>
+                        <div className="sora" style={{fontSize:16,fontWeight:700,color:"var(--acc)"}}>
+                          {ar(p.prixVente)}
+                        </div>
+                        <div style={{fontSize:10,color:"var(--txm)"}}>/{p.unite}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Panier sticky */}
+                  {cart.length>0&&(
+                    <div className="card" style={{marginBottom:14}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                        <div className="sora" style={{fontSize:15,fontWeight:700}}>
+                          🧾 Panier
+                          <span style={{marginLeft:8,background:"var(--acc)",color:"white",borderRadius:"50%",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700}}>
+                            {cart.reduce((s,c)=>s+c.qty,0)}
+                          </span>
+                        </div>
+                        <button className="btn-ghost" onClick={()=>setCart([])} style={{padding:"6px 12px",fontSize:12}}>Vider</button>
+                      </div>
+
+                      {/* Articles panier */}
+                      {cart.map(item=>(
+                        <div key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(0,0,0,0.06)"}}>
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:600,fontSize:13}}>{item.nom}</div>
+                            <div style={{fontSize:11,color:"var(--txm)"}}>{ar(item.prixVente)}/{item.unite}</div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <button onClick={()=>updQty(item.id,item.qty-1)} style={{width:30,height:30,border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,background:"rgba(255,255,255,0.7)",cursor:"pointer",fontWeight:900,fontSize:16}}>−</button>
+                            <span style={{fontWeight:700,minWidth:22,textAlign:"center",fontSize:15}}>{item.qty}</span>
+                            <button onClick={()=>updQty(item.id,item.qty+1)} disabled={item.qty>=item.stock} style={{width:30,height:30,border:"1px solid rgba(0,0,0,0.1)",borderRadius:8,background:"rgba(255,255,255,0.7)",cursor:"pointer",fontWeight:900,fontSize:16}}>+</button>
+                          </div>
+                          <span style={{fontWeight:700,color:"var(--acc)",minWidth:72,textAlign:"right",fontSize:13}}>{ar(item.prixVente*item.qty)}</span>
+                        </div>
+                      ))}
+
+                      {/* Total */}
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0 8px",borderBottom:"1px solid rgba(0,0,0,0.07)"}}>
+                        <span style={{fontWeight:600,fontSize:15}}>Total à payer</span>
+                        <span className="sora" style={{fontSize:22,fontWeight:700,color:"var(--acc)"}}>{ar(cartTotal)}</span>
+                      </div>
+
+                      {/* Montant reçu */}
+                      <div style={{marginTop:14,marginBottom:10}}>
+                        <span className="lbl">💵 Montant reçu (Ar)</span>
+                        <input
+                          className="inp inp-big"
+                          type="number"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={received}
+                          onChange={e=>setReceived(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Monnaie à rendre */}
+                      {received!==""&&(
+                        monnaie>=0?(
+                          <div className="money-box" style={{background:"var(--ok-bg)",borderColor:"var(--ok-bd)",marginBottom:12,alignItems:"center"}}>
+                            <div style={{fontSize:11,fontWeight:700,color:"var(--ok)",textTransform:"uppercase",letterSpacing:1}}>💵 Monnaie à rendre</div>
+                            <div className="sora" style={{fontSize:28,fontWeight:700,color:"var(--ok)"}}>{ar(monnaie)}</div>
+                          </div>
+                        ):(
+                          <div className="money-box" style={{background:"var(--err-bg)",borderColor:"var(--err-bd)",marginBottom:12,alignItems:"center"}}>
+                            <div style={{fontSize:11,fontWeight:700,color:"var(--err)",textTransform:"uppercase",letterSpacing:1}}>⚠️ Manque</div>
+                            <div className="sora" style={{fontSize:28,fontWeight:700,color:"var(--err)"}}>{ar(Math.abs(monnaie))}</div>
+                          </div>
+                        )
+                      )}
+
+                      <button className="btn-acc" onClick={valider} style={{width:"100%",padding:"14px",fontSize:15,borderRadius:12}}>
+                        ✓ Valider la Vente
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ══ PRODUITS ══ */}
+      {page==="products"&&(
+        <div className="page">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div className="sora" style={{fontSize:20,fontWeight:700,color:"var(--tx)"}}>Produits</div>
+            <button className="btn-acc" onClick={openAdd} style={{padding:"10px 16px",fontSize:13}}>+ Nouveau</button>
+          </div>
+
+          <input className="inp" placeholder="🔍 Rechercher..." value={prodSearch} onChange={e=>setProdSearch(e.target.value)} style={{marginBottom:10}}/>
+          <div style={{display:"flex",gap:7,overflowX:"auto",marginBottom:12,paddingBottom:4}}>
+            {CATEGORIES.map(cat=>(
+              <button key={cat} className="pill" onClick={()=>setProdCat(cat)}
+                style={{background:prodCat===cat?"var(--acc)":"rgba(255,255,255,0.55)",color:prodCat===cat?"white":"var(--tx2)",border:prodCat===cat?"none":"1px solid rgba(255,255,255,0.75)"}}>
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {filtProds.length===0?(
+            <div className="card" style={{textAlign:"center",padding:"50px 16px"}}>
+              <div style={{fontSize:40,marginBottom:14}}>📦</div>
+              <div style={{color:"var(--tx2)",marginBottom:18,fontSize:14}}>Aucun produit. Ajoutez votre premier article.</div>
+              <button className="btn-acc" onClick={openAdd} style={{width:"100%",padding:"13px"}}>+ Ajouter un produit</button>
+            </div>
+          ):(
+            <div style={{display:"flex",flexDirection:"column",gap:9}}>
+              {filtProds.map(p=>{
+                const b=benef1(p); const m=mg(p);
+                const ccat=cc(p.categorie);
+                return(
+                  <div key={p.id} className="card">
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:ccat.dot,boxShadow:`0 0 5px ${ccat.dot}`}}/>
+                          <span style={{fontWeight:700,fontSize:15,color:"var(--tx)"}}>{p.nom}</span>
+                        </div>
+                        <span className="badge" style={{background:ccat.bg,color:ccat.text,fontSize:10,marginBottom:6}}>{p.categorie}</span>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                        <button className="btn-ghost" onClick={()=>openEdit(p)} style={{padding:"7px 12px",fontSize:13}}>✏️</button>
+                        <button className="btn-del" onClick={()=>delProd(p.id)}>🗑️</button>
+                      </div>
+                    </div>
+
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8}}>
+                      {[
+                        {label:"Achat",val:ar(p.prixAchat),color:"var(--tx2)"},
+                        {label:"Vente",val:ar(p.prixVente),color:"var(--acc)"},
+                        {label:b>=0?"Bénéf.":"Perte",val:(b>=0?"+":"")+ar(b),color:b>=0?"var(--ok)":"var(--err)"},
+                        {label:"Stock",val:`${p.stock} ${p.unite}`,color:p.stock<5?"var(--err)":p.stock<15?"var(--warn)":"var(--ok)"},
+                      ].map((it,i)=>(
+                        <div key={i} style={{background:"rgba(0,0,0,0.03)",borderRadius:10,padding:"8px 6px",textAlign:"center"}}>
+                          <div style={{fontSize:9,fontWeight:600,color:"var(--txm)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:3}}>{it.label}</div>
+                          <div style={{fontSize:12,fontWeight:700,color:it.color}}>{it.val}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{marginTop:8,textAlign:"right",fontSize:11,color:"var(--txm)"}}>
+                      Marge : <span style={{fontWeight:700,color:m>=20?"var(--ok)":m>=0?"var(--warn)":"var(--err)"}}>{m}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ HISTORIQUE ══ */}
+      {page==="historique"&&(
+        <div className="page">
+          <div className="sora" style={{fontSize:20,fontWeight:700,color:"var(--tx)",marginBottom:14}}>Historique</div>
+
+          {/* Résumé */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:12}}>
+            <div className="card" style={{background:"linear-gradient(135deg,rgba(0,120,212,0.08),var(--card))"}}>
+              <span className="lbl">Ventes</span>
+              <div className="sora" style={{fontSize:18,fontWeight:700,color:"var(--acc)"}}>{ar(totalVentes)}</div>
+            </div>
+            <div className="card" style={{background:`linear-gradient(135deg,${benef>=0?"var(--ok-bg)":"var(--err-bg)"},var(--card))`}}>
+              <span className="lbl">{benef>=0?"Bénéfice":"Perte"}</span>
+              <div className="sora" style={{fontSize:18,fontWeight:700,color:benef>=0?"var(--ok)":"var(--err)"}}>{ar(Math.abs(benef))}</div>
+            </div>
+          </div>
+
+          {sales.length===0?(
+            <div className="card" style={{textAlign:"center",padding:"50px 16px",color:"var(--tx2)"}}>
+              <div style={{fontSize:36,marginBottom:12}}>📋</div>
+              Aucune vente enregistrée.
+            </div>
+          ):(
+            <div style={{display:"flex",flexDirection:"column",gap:9}}>
+              {[...sales].reverse().map(s=>(
+                <div key={s.id} className="card">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:14,color:"var(--tx)"}}>{s.produit}</div>
+                      <div style={{fontSize:11,color:"var(--txm)"}}>{s.date} · ×{s.quantite} {s.unite}</div>
+                    </div>
+                    <span className="badge" style={{background:s.benefice>=0?"var(--ok-bg)":"var(--err-bg)",color:s.benefice>=0?"var(--ok)":"var(--err)"}}>
+                      {s.benefice>=0?"+":""}{ar(s.benefice)}
+                    </span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                    {[
+                      {label:"Achat",val:ar(s.prixAchat),color:"var(--tx2)"},
+                      {label:"Vente",val:ar(s.prixVente),color:"var(--acc)"},
+                      {label:"Total",val:ar(s.totalVente),color:"var(--tx)"},
+                    ].map((it,i)=>(
+                      <div key={i} style={{background:"rgba(0,0,0,0.03)",borderRadius:10,padding:"7px",textAlign:"center"}}>
+                        <div style={{fontSize:9,fontWeight:600,color:"var(--txm)",textTransform:"uppercase",letterSpacing:0.8,marginBottom:2}}>{it.label}</div>
+                        <div style={{fontSize:12,fontWeight:700,color:it.color}}>{it.val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ BOTTOM NAV ══ */}
+      <nav className="botnav">
+        {TABS.map(t=>(
+          <button key={t.k} className={`botnav-btn${page===t.k?" active":""}`} onClick={()=>setPage(t.k)}>
+            <span className="bnav-icon">{t.icon}</span>
+            <span>{t.label}</span>
+            <span className="bnav-dot"/>
+          </button>
+        ))}
+      </nav>
+
+      {/* ══ MODAL PRODUIT ══ */}
+      {showModal&&(
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setShowModal(false)}>
+          <div className="modal">
+            <div className="modal-handle"/>
+            <div className="sora" style={{fontSize:18,fontWeight:700,marginBottom:20,color:"var(--tx)"}}>
+              {editProd?"✏️ Modifier":"➕ Nouveau Produit"}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              <div>
+                <span className="lbl">Nom du produit *</span>
+                <input className="inp" placeholder="Ex: Riz local" value={form.nom} onChange={e=>setForm({...form,nom:e.target.value})}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div>
+                  <span className="lbl">Catégorie</span>
+                  <select className="sel" value={form.categorie} onChange={e=>setForm({...form,categorie:e.target.value})}>
+                    {CATEGORIES.filter(c=>c!=="Tous").map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <span className="lbl">Unité</span>
+                  <select className="sel" value={form.unite} onChange={e=>setForm({...form,unite:e.target.value})}>
+                    {["pce","kg","g","L","ml","sac","boîte"].map(u=><option key={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div>
+                  <span className="lbl">💰 Prix Achat (Ar)</span>
+                  <input className="inp" type="number" inputMode="numeric" step="100" placeholder="0" value={form.prixAchat} onChange={e=>setForm({...form,prixAchat:e.target.value})}/>
+                </div>
+                <div>
+                  <span className="lbl">🏷️ Prix Vente (Ar)</span>
+                  <input className="inp" type="number" inputMode="numeric" step="100" placeholder="0" value={form.prixVente} onChange={e=>setForm({...form,prixVente:e.target.value})}/>
+                </div>
+              </div>
+
+              {/* Aperçu bénéfice */}
+              {form.prixAchat&&form.prixVente&&(
+                <div style={{
+                  background:(+form.prixVente-+form.prixAchat)>=0?"var(--ok-bg)":"var(--err-bg)",
+                  border:`1.5px solid ${(+form.prixVente-+form.prixAchat)>=0?"var(--ok-bd)":"var(--err-bd)"}`,
+                  borderRadius:12,padding:"12px 16px",
+                  display:"flex",justifyContent:"space-between",alignItems:"center",
+                  animation:"fadeIn 0.2s ease"
+                }}>
+                  <span style={{fontSize:13,fontWeight:600,color:"var(--tx2)"}}>
+                    {(+form.prixVente-+form.prixAchat)>=0?"✅ Bénéfice/unité":"❌ Perte/unité"}
+                  </span>
+                  <div style={{textAlign:"right"}}>
+                    <div className="sora" style={{fontSize:18,fontWeight:700,color:(+form.prixVente-+form.prixAchat)>=0?"var(--ok)":"var(--err)"}}>
+                      {(+form.prixVente-+form.prixAchat)>=0?"+":""}{ar(+form.prixVente-+form.prixAchat)}
+                    </div>
+                    {+form.prixVente>0&&<div style={{fontSize:11,color:"var(--txm)"}}>
+                      {Math.round((+form.prixVente-+form.prixAchat)/+form.prixVente*100)}% marge
+                    </div>}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <span className="lbl">Stock initial *</span>
+                <input className="inp" type="number" inputMode="numeric" placeholder="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:22}}>
+              <button className="btn-acc" onClick={saveProd} style={{flex:1,padding:"14px",fontSize:14,borderRadius:12}}>
+                {editProd?"Enregistrer":"Ajouter"}
+              </button>
+              <button className="btn-ghost" onClick={()=>setShowModal(false)} style={{flex:1,padding:"14px",borderRadius:12}}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
